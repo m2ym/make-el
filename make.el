@@ -37,6 +37,21 @@
            while (and parent-dirname (< (length parent-dirname) (length current-dirname)))
            collect parent-dirname))
 
+(defun make--wildcard-to-regexp (wildcard)
+  (concat "^"
+          (mapconcat 'regexp-quote
+                     (split-string wildcard "%")
+                     "\\(.+?\\)")
+          "$"))
+
+(defun make--match-rule (prerequisite rule-target rule-prereq)
+  (let ((regexp (make--wildcard-to-regexp rule-prereq)))
+    (when (string-match regexp prerequisite)
+      (let ((matched (match-string 1 prerequisite)))
+        (if matched
+            (replace-regexp-in-string "%" matched rule-target)
+          matched)))))
+
 (defun make-locate-makefile (filename)
   (cl-loop for parent-dirname in (if (file-directory-p filename)
                                      (cons filename
@@ -51,14 +66,12 @@
     (let ((default-directory (file-name-directory makefile)))
       (shell-command "make -q -p -n | grep -v '^#' | grep -v '='" (current-buffer)))
     (goto-char (point-min))
-    (let ((db (make-hash-table :test 'equal)))
+    (let (db)
       (while (re-search-forward "^\\(.+?\\) *: *\\(.+?\\)$" nil t)
         (let ((target (match-string 1))
               (prerequisites (split-string (match-string 2) " ")))
-          (dolist (prerequisite prerequisites)
-            (unless (gethash prerequisite db)
-              (puthash prerequisite target db)))))
-      db)))
+          (push (cons target prerequisites) db)))
+      (nreverse db))))
 
 (defgroup make nil
   "GNU make frontend."
@@ -98,7 +111,9 @@ the number of cores."
 
 (defun make-lookup-target-for-prerequisite (prerequisite)
   (cl-assert make-db)
-  (gethash prerequisite make-db))
+  (cl-loop for (target . prereqs) in make-db thereis
+           (cl-loop for prereq in prereqs thereis
+                    (make--match-rule prerequisite target prereq))))
 
 (defun make-lookup-prerequisite-for-file (filename)
   (cl-assert make-directory)
