@@ -94,10 +94,15 @@ the number of cores."
 
 (defvar make-directory nil)
 
+(defun make-jobs ()
+  (if (eq make-jobs 'cores)
+      (make--cores)
+    make-jobs))
+
 (cl-defun make-command (&key target)
   (format "%s -k -j%d %s"
           make-program
-          (make--cores)
+          (make-jobs)
           (or target "")))
 
 (cl-defun make-run-make (&key target)
