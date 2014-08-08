@@ -1,5 +1,20 @@
 (require 'cl-lib)
 
+(defvar make--cores nil)
+
+(defun make--cores ()
+  (or make--cores
+      (let ((cores (cond ((and (eq system-type 'gnu/linux)
+                               (file-exists-p "/proc/cpuinfo"))
+                          (shell-command-to-string
+                           "awk '/^cpu cores/ { print $4; exit }' /proc/cpuinfo"))
+                         ((and (eq system-type 'darwin)
+                               (file-executable-p "/usr/sbin/sysctl"))
+                          (shell-command-to-string
+                           "/usr/sbin/sysctl hw.physicalcpu | awk '{ print $2 }'"))
+                         (t "1"))))
+        (setq make--cores (max 1 (string-to-number cores))))))
+
 (defun make--canonical-filename (filename)
   (expand-file-name filename))
 
@@ -45,17 +60,38 @@
               (puthash prerequisite target db)))))
       db)))
 
+(defgroup make nil
+  "GNU make frontend."
+  :group 'convenience
+  :prefix "make-")
+
+(defcustom make-program "make"
+  "The name of make program."
+  :type 'string
+  :group 'make)
+
+(defcustom make-jobs 'cores
+  "The number of jobs make runs simultaneously.  `cores' implies
+the number of cores."
+  :type '(or number
+             (const :tag "The number of cores" cores))
+  :group 'make)
+
 (defvar make-makefile nil)
 
 (defvar make-directory nil)
+
+(cl-defun make-command (&key target)
+  (format "%s -k -j%d %s"
+          make-program
+          (make--cores)
+          (or target "")))
 
 (cl-defun make-run-make (&key target)
   (cl-assert make-makefile)
   (cl-assert make-directory)
   (let ((default-directory make-directory)
-        (command (concat "make -k -j"
-                         (when target
-                           (concat " " target)))))
+        (command (make-command :target target)))
     (compile command)))
 
 (defvar make-db nil)
