@@ -1,5 +1,20 @@
 (require 'cl-lib)
 
+(defgroup make nil
+  "GNU make frontend."
+  :group 'convenience
+  :prefix "make-")
+
+(defcustom make-program "make"
+  "The name of make program."
+  :type 'string
+  :group 'make)
+
+(defcustom make-options '("-k")
+  "Options to pass to make program."
+  :type 'string
+  :group 'make)
+
 (defvar make--cores nil)
 
 (defun make--cores ()
@@ -64,7 +79,9 @@
 (defun make-read-db (makefile)
   (with-temp-buffer
     (let ((default-directory (file-name-directory makefile)))
-      (shell-command "make -q -p -n | grep -v '^#' | grep -v '='" (current-buffer)))
+      (shell-command (format "%s -r -R -q -n -p | grep -v '^#' | grep -v '='"
+                             make-program)
+                     (current-buffer)))
     (goto-char (point-min))
     (let (db)
       (while (re-search-forward "^\\(.+?\\) *: *\\(.+?\\)$" nil t)
@@ -73,16 +90,6 @@
           (push (cons target prerequisites) db)))
       (nreverse db))))
 
-(defgroup make nil
-  "GNU make frontend."
-  :group 'convenience
-  :prefix "make-")
-
-(defcustom make-program "make"
-  "The name of make program."
-  :type 'string
-  :group 'make)
-
 (defcustom make-jobs 'cores
   "The number of jobs make runs simultaneously.  `cores' implies
 the number of cores."
@@ -90,20 +97,22 @@ the number of cores."
              (const :tag "The number of cores" cores))
   :group 'make)
 
-(defvar make-makefile nil)
-
-(defvar make-directory nil)
-
 (defun make-jobs ()
   (if (eq make-jobs 'cores)
       (make--cores)
     make-jobs))
 
 (cl-defun make-command (&key target)
-  (format "%s -k -j%d %s"
-          make-program
-          (make-jobs)
-          (or target "")))
+  (mapconcat 'shell-quote-argument
+             `(,make-program
+               ,(format "-j%d" (make-jobs))
+               ,@make-options
+               ,@(and target (list target)))
+             " "))
+
+(defvar make-makefile nil)
+
+(defvar make-directory nil)
 
 (cl-defun make-run-make (&key target)
   (cl-assert make-makefile)
