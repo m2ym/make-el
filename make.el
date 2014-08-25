@@ -65,7 +65,7 @@
       (let ((matched (match-string 1 prerequisite)))
         (if matched
             (replace-regexp-in-string "%" matched rule-target)
-          matched)))))
+          rule-target)))))
 
 (defun make-locate-makefile (filename)
   (cl-loop for parent-dirname in (if (file-directory-p filename)
