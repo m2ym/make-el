@@ -72,9 +72,11 @@
                                      (cons filename
                                            (make--directory-parents filename))
                                    (make--directory-parents filename))
-           for makefile = (expand-file-name "Makefile" parent-dirname)
-           if (file-exists-p makefile)
-           return makefile))
+           thereis
+           (cl-loop for makefile-name in (list "Makefile" "GNUmakefile")
+                    for makefile = (expand-file-name makefile-name parent-dirname)
+                    if (file-exists-p makefile)
+                    return makefile)))
 
 (defun make-read-db (makefile)
   (with-temp-buffer
